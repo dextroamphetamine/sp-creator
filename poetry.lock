@@ -78,6 +78,14 @@ filecache = ["lockfile (>=0.9)"]
 redis = ["redis (>=2.10.5)"]
 
 [[package]]
+name = "cachelib"
+version = "0.10.2"
+description = "A collection of cache libraries in the same API interface."
+category = "main"
+optional = false
+python-versions = ">=3.7"
+
+[[package]]
 name = "cachy"
 version = "0.3.0"
 description = "Cachy provides a simple yet effective caching library."
@@ -237,6 +245,29 @@ async = ["asgiref (>=3.2)"]
 dotenv = ["python-dotenv"]
 
 [[package]]
+name = "flask-cors"
+version = "4.0.0"
+description = "A Flask extension adding a decorator for CORS support"
+category = "main"
+optional = false
+python-versions = "*"
+
+[package.dependencies]
+Flask = ">=0.9"
+
+[[package]]
+name = "flask-session"
+version = "0.5.0"
+description = "Server-side session support for Flask"
+category = "main"
+optional = false
+python-versions = ">=3.7"
+
+[package.dependencies]
+cachelib = "*"
+flask = ">=2.2"
+
+[[package]]
 name = "frozenlist"
 version = "1.4.0"
 description = "A list-like structure which implements collections.abc.MutableSequence"
@@ -352,6 +383,14 @@ MarkupSafe = ">=2.0"
 i18n = ["Babel (>=2.7)"]
 
 [[package]]
+name = "joblib"
+version = "1.3.2"
+description = "Lightweight pipelining with Python functions"
+category = "main"
+optional = false
+python-versions = ">=3.7"
+
+[[package]]
 name = "keyring"
 version = "24.2.0"
 description = "Store and access your passwords safely."
@@ -410,6 +449,28 @@ description = "multidict implementation"
 category = "main"
 optional = false
 python-versions = ">=3.7"
+
+[[package]]
+name = "nltk"
+version = "3.8.1"
+description = "Natural Language Toolkit"
+category = "main"
+optional = false
+python-versions = ">=3.7"
+
+[package.dependencies]
+click = "*"
+joblib = "*"
+regex = ">=2021.8.3"
+tqdm = "*"
+
+[package.extras]
+all = ["scikit-learn", "python-crfsuite", "requests", "numpy", "pyparsing", "twython", "scipy", "matplotlib"]
+corenlp = ["requests"]
+machine_learning = ["numpy", "python-crfsuite", "scikit-learn", "scipy"]
+plot = ["matplotlib"]
+tgrep = ["pyparsing"]
+twitter = ["twython"]
 
 [[package]]
 name = "numpy"
@@ -624,6 +685,14 @@ optional = false
 python-versions = ">=3.6"
 
 [[package]]
+name = "regex"
+version = "2023.8.8"
+description = "Alternative regular expression module, to replace re."
+category = "main"
+optional = false
+python-versions = ">=3.6"
+
+[[package]]
 name = "replit-python-lsp-server"
 version = "1.15.9"
 description = "Python Language Server for the Language Server Protocol"
@@ -728,6 +797,17 @@ description = "Python 2 and 3 compatibility utilities"
 category = "dev"
 optional = false
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*"
+
+[[package]]
+name = "textblob"
+version = "0.17.1"
+description = "Simple, Pythonic text processing. Sentiment analysis, part-of-speech tagging, noun phrase parsing, and more."
+category = "main"
+optional = false
+python-versions = "*"
+
+[package.dependencies]
+nltk = {version = ">=3.1", markers = "python_version >= \"3\""}
 
 [[package]]
 name = "toml"
@@ -878,7 +958,7 @@ testing = ["pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-cov", "pytest-ena
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.10.0,<3.11"
-content-hash = "8cabf8ae5f0d2fac0973a1055f3113eb43ea8132128b8993aa4bf78712bcb29b"
+content-hash = "d2fbc52acf6ca2bc90681d4c66bffe793bad209642c49ff5f555ac30e270c08a"
 
 [metadata.files]
 aiohttp = []
@@ -887,6 +967,7 @@ async-timeout = []
 attrs = []
 blinker = []
 cachecontrol = []
+cachelib = []
 cachy = []
 certifi = []
 cffi = []
@@ -901,6 +982,8 @@ debugpy = []
 distlib = []
 filelock = []
 flask = []
+flask-cors = []
+flask-session = []
 frozenlist = []
 html5lib = []
 idna = []
@@ -910,12 +993,14 @@ itsdangerous = []
 jedi = []
 jeepney = []
 jinja2 = []
+joblib = []
 keyring = []
 lockfile = []
 markupsafe = []
 more-itertools = []
 msgpack = []
 multidict = []
+nltk = []
 numpy = []
 openai = []
 packaging = []
@@ -934,6 +1019,7 @@ pylev = []
 python-lsp-jsonrpc = []
 pytoolconfig = []
 pywin32-ctypes = []
+regex = []
 replit-python-lsp-server = []
 requests = []
 requests-toolbelt = []
@@ -941,6 +1027,7 @@ rope = []
 secretstorage = []
 shellingham = []
 six = []
+textblob = []
 toml = []
 tomli = []
 tomlkit = []
