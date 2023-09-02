@@ -1,0 +1,8 @@
+flask_session
+venv
+.git
+.config
+__pycache__
+.upm
+.breakpoints
+**/*.pyc  

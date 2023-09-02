@@ -2,61 +2,75 @@ import requests
 import base64
 import os
 from flask import session
+from typing import Dict, Optional, Callable
 from .openai import ask_openai_for_songs, parse_openai_response
+from .musicbrainz import make_musicbrainz_request
 
-BASE_SPOTIFY_URL = "https://api.spotify.com/v1"
+BASE_SPOTIFY_URL = "https://api.spotify.com/v1/"
 CLIENT_ID = os.environ.get('CLIENT_ID')
 CLIENT_SECRET = os.environ.get('CLIENT_SECRET')
 REDIRECT_URI = 'https://python.dextroamphetam1.repl.co/callback'
 
+
 def get_spotify_auth(code):
-    url = "https://accounts.spotify.com/api/token"
-    auth_header = base64.b64encode(
-        f"{CLIENT_ID}:{CLIENT_SECRET}".encode('utf-8')).decode('utf-8')
-    headers = {"Authorization": f"Basic {auth_header}"}
-    data = {
-        "grant_type": "authorization_code",
-        "code": code,
-        "redirect_uri": REDIRECT_URI
-    }
-    response = requests.post(url, headers=headers, data=data)
-    if response.status_code != 200:
-        response_data = response.json()
-        print("Error getting access token:", response_data)
-        return None, None
-
+  url = "https://accounts.spotify.com/api/token"
+  auth_header = base64.b64encode(
+    f"{CLIENT_ID}:{CLIENT_SECRET}".encode('utf-8')).decode('utf-8')
+  headers = {"Authorization": f"Basic {auth_header}"}
+  data = {
+    "grant_type": "authorization_code",
+    "code": code,
+    "redirect_uri": REDIRECT_URI
+  }
+  response = requests.post(url, headers=headers, data=data)
+  if response.status_code != 200:
     response_data = response.json()
-    return response_data["access_token"], response_data["refresh_token"]
+    print("Error getting access token:", response_data)
+    return None, None
 
-def make_spotify_request(endpoint, headers, method='GET', data=None, params=None):
-    """
-    Make a request to the Spotify API.
-    """
-    url = f'https://api.spotify.com/v1/{endpoint}'
-    response = requests.request(method, url, headers=headers, data=data, params=params)
+  response_data = response.json()
+  return response_data["access_token"], response_data["refresh_token"]
+
+
+# Implement make_spotify_request based on the interface
+def make_spotify_request(endpoint: str, headers: Dict[str, str], method: str = "GET", params: Optional[Dict] = None, json: Optional[Dict] = None, retries: int = 1) -> Dict:
+    url = BASE_SPOTIFY_URL + endpoint
+    response = requests.request(method, url, headers=headers, params=params, json=json)
     
-    if response.status_code == 401:  # Token expired
-        if not refresh_access_token(session.get('refresh_token')):
-            return None
-        headers['Authorization'] = f'Bearer {session.get("access_token")}'
-        response = requests.request(method, url, headers=headers, data=data, params=params)
+    if response.status_code == 401 and retries:
+        success = refresh_access_token(session.get('refresh_token'))
+        if success:
+            headers['Authorization'] = f"Bearer {session['access_token']}"
+            return make_spotify_request(endpoint, headers, method=method, params=params, json=json, retries=0)
     
-    return response
+    response.raise_for_status()
+    return response.json()
+
 
 
 def search_artists(query, access_token):
     headers = {'Authorization': f'Bearer {access_token}'}
     response = make_spotify_request(f'search?q={query}&type=artist&limit=10', headers=headers)
-    if not response or response.status_code != 200:
+    
+    # Use key lookups instead of dot notation
+    if 'artists' not in response or not response['artists']['items']:
         return []
-    artists_data = response.json()["artists"]["items"]
-    artists = [{"id": artist["id"], "name": artist["name"], "image_url": artist['images'][0]['url'] if artist['images'] else None} for artist in artists_data]
+    
+    artists_data = response['artists']['items']
+    artists = [{
+        "id": artist["id"],
+        "name": artist["name"],
+        "image_url": artist['images'][0]['url'] if artist['images'] else None
+    } for artist in artists_data]
+    
     return artists
 
+
 def get_user_id(access_token):
-    headers = {"Authorization": f"Bearer {access_token}"}
-    response = make_spotify_request("me", headers=headers)
-    return response.json()["id"]
+  headers = {"Authorization": f"Bearer {access_token}"}
+  response = make_spotify_request("me", headers=headers)
+  return response["id"]
+
 
 def create_playlist(access_token, user_id, playlist_name):
     headers = {
@@ -67,8 +81,8 @@ def create_playlist(access_token, user_id, playlist_name):
         "name": playlist_name,
         "public": False  # This makes the playlist private
     }
-    response = requests.post(f'{BASE_SPOTIFY_URL}/users/{user_id}/playlists', headers=headers, json=data)
-    return response.json()
+    response = make_spotify_request(f'users/{user_id}/playlists', headers=headers, method="POST", json=data)
+    return response
 
 def add_tracks_to_playlist(access_token, playlist_id, track_ids):
     headers = {
@@ -76,120 +90,124 @@ def add_tracks_to_playlist(access_token, playlist_id, track_ids):
         "Content-Type": "application/json"
     }
     data = {"uris": [f"spotify:track:{track_id}" for track_id in track_ids]}
-    response = requests.post(f'{BASE_SPOTIFY_URL}/playlists/{playlist_id}/tracks', headers=headers, json=data)
-    return response.json()
+    response = make_spotify_request(f'playlists/{playlist_id}/tracks', headers=headers, method="POST", json=data)
+    return response
+
+
 
 def get_spotify_track_ids(song_titles, artists, access_token):
-    track_ids = []
-    headers = {'Authorization': f'Bearer {access_token}'}
-    for title, artist in zip(song_titles, artists):
-        query = f'track:"{title}" artist:"{artist}"'
-        response = make_spotify_request(f'search?q={query}&type=track&limit=1', headers=headers)
-        tracks = response.json()['tracks']['items']
-        if tracks:
-            track_ids.append(tracks[0]['id'])
-    return track_ids
+  track_ids = []
+  headers = {'Authorization': f'Bearer {access_token}'}
+  for title, artist in zip(song_titles, artists):
+    query = f'track:"{title}" artist:"{artist}"'
+    response = make_spotify_request(f'search?q={query}&type=track&limit=1',
+                                    headers=headers)
+    tracks = response['tracks']['items']
+    if tracks:
+      track_ids.append(tracks[0]['id'])
+  return track_ids
+
 
 def get_audio_features(track_ids, access_token):
-    headers = {'Authorization': f'Bearer {access_token}'}
-    track_ids_str = ",".join(track_ids)
-    response = make_spotify_request(f'audio-features?ids={track_ids_str}', headers=headers)
-    if not response or response.status_code != 200:
-        return []
-    return response.json()["audio_features"]
+  headers = {'Authorization': f'Bearer {access_token}'}
+  track_ids_str = ",".join(track_ids)
+  response = make_spotify_request(f'audio-features?ids={track_ids_str}',
+                                  headers=headers)
+  if not response:
+    return []
+  return response["audio_features"]
+
 
 def get_songs_matching_mood(audio_features, sentiment):
-    # Your logic to match songs based on audio features and sentiment
-    # This is a placeholder, you can replace it with your actual logic
-    matching_songs = []
-    for feature in audio_features:
-        if feature['valence'] > 0.5 and sentiment == 'positive':
-            matching_songs.append(feature['id'])
-        elif feature['valence'] <= 0.5 and sentiment == 'negative':
-            matching_songs.append(feature['id'])
-    return matching_songs
+  # Your logic to match songs based on audio features and sentiment
+  # This is a placeholder, you can replace it with your actual logic
+  matching_songs = []
+  for feature in audio_features:
+    if feature['valence'] > 0.5 and sentiment == 'positive':
+      matching_songs.append(feature['id'])
+    elif feature['valence'] <= 0.5 and sentiment == 'negative':
+      matching_songs.append(feature['id'])
+  return matching_songs
 
 
 def get_common_audio_profile(audio_features_list):
-    summed_features = {feature: 0 for feature in audio_features_list[0]}
-    
-    for features in audio_features_list:
-        for key, value in features.items():
-          if not isinstance(value, str):
-            summed_features[key] += value
+  summed_features = {feature: 0 for feature in audio_features_list[0]}
 
-    num_songs = len(audio_features_list)
-    average_features = {key: value/num_songs for key, value in summed_features.items()}
+  for features in audio_features_list:
+    for key, value in features.items():
+      if not isinstance(value, str):
+        summed_features[key] += value
 
-    return average_features
+  num_songs = len(audio_features_list)
+  average_features = {
+    key: value / num_songs
+    for key, value in summed_features.items()
+  }
+
+  return average_features
+
 
 def find_songs_matching_profile(average_features, access_token, tolerance=0.1):
-    headers = {'Authorization': f'Bearer {access_token}'}
-    
-    # Fetch top tracks or tracks from specific genres as a sample
-    response = requests.get(f"{BASE_SPOTIFY_URL}/browse/top-lists", headers=headers)
-    track_ids = [track['id'] for track in response.json().get('tracks', {}).get('items', [])]
-    
-    # Fetch audio features for these tracks
-    track_features = get_audio_features(track_ids, access_token)
-    
-    # Filter tracks based on our desired audio feature profile
-    matching_songs = []
-    for features in track_features:
-        is_match = all(
-            (1 - tolerance) * average_features[key] <= features[key] <= (1 + tolerance) * average_features[key]
-            for key in average_features
-        )
-        if is_match:
-            matching_songs.append(features['id'])
-    
-    return matching_songs
+  headers = {'Authorization': f'Bearer {access_token}'}
 
-def get_extended_song_recommendations(moods, activities, artists, access_token):
-    openai_response = ask_openai_for_songs(moods, activities, artists)
-    song_artist_pairs = parse_openai_response(openai_response)
-    song_titles = [pair[0] for pair in song_artist_pairs]
-    suggested_artists = [pair[1] for pair in song_artist_pairs]
+  # Fetch top tracks or tracks from specific genres as a sample
+  response = requests.get(f"{BASE_SPOTIFY_URL}/browse/top-lists",
+                          headers=headers)
+  track_ids = [
+    track['id']
+    for track in response.json().get('tracks', {}).get('items', [])
+  ]
 
-    track_ids = get_spotify_track_ids(song_titles, suggested_artists, access_token)
-    audio_features_list = get_audio_features(track_ids, access_token)
+  # Fetch audio features for these tracks
+  track_features = get_audio_features(track_ids, access_token)
 
-    average_features = get_common_audio_profile(audio_features_list)
-    additional_songs = find_songs_matching_profile(average_features, access_token)
+  # Filter tracks based on our desired audio feature profile
+  matching_songs = []
+  for features in track_features:
+    is_match = all((1 - tolerance) * average_features[key] <= features[key] <=
+                   (1 + tolerance) * average_features[key]
+                   for key in average_features)
+    if is_match:
+      matching_songs.append(features['id'])
 
-    combined_songs = song_artist_pairs + additional_songs
-    return combined_songs
+  return matching_songs
 
-def get_recommendations_based_on_features(audio_features_list, seed_artists, seed_tracks, access_token, song_count):
-    # Calculate the average of the audio features
-    avg_features = get_average_audio_features(audio_features_list)
 
-    # Prepare the parameters for the Spotify Recommendations API
+def get_recommendations_based_on_features(features, seed_artists=None, seed_tracks=None, genres=None, num_songs=10):
+    headers = {"Authorization": f"Bearer {session['access_token']}"}
+
+    features = get_average_audio_features(features)
+
     params = {
-        'limit': song_count,
-        'seed_artists': ','.join(seed_artists[:5]),  # Limit to 5 seed artists
-        # Limit to 5 seed tracks
-        'target_danceability': avg_features['danceability'],
-        'target_energy': avg_features['energy'],
-        'target_acousticness': avg_features['acousticness'],
-        'target_instrumentalness': avg_features['instrumentalness'],
-        'target_valence': avg_features['valence'],
-        'target_liveness': avg_features['liveness'],
-        'target_tempo': avg_features['tempo']
+        "market": "CA",
+        "limit": num_songs,
+        "target_acousticness": features.get("acousticness"),
+        "target_danceability": features.get("danceability"),
+        "target_duration_ms": features.get("duration_ms"),
+        "target_energy": features.get("energy"),
+        "target_instrumentalness": features.get("instrumentalness"),
+        "target_key": round(features.get("key")),  # Round the key value
+        "target_liveness": features.get("liveness"),
+        "target_loudness": features.get("loudness"),
+        "target_popularity": features.get("popularity"),
+        "target_speechiness": features.get("speechiness"),
+        "target_tempo": features.get("tempo"),
+        "target_time_signature": round(features.get("time_signature")),
+        "target_valence": features.get("valence")
     }
 
-    headers = {
-        'Authorization': f'Bearer {access_token}'
-    }
+    params = {k: v for k, v in params.items() if v is not None}
 
-    response = make_spotify_request('recommendations', headers=headers, params=params)
+    if seed_artists:
+        params["seed_artists"] = ",".join(seed_artists[:5])  # Limit to 5 seed artists
 
-    if response.status_code != 200:
-        print("Error fetching recommendations:", response.content)
-        return []
+    remaining_seeds = 5 - len(params.get("seed_artists", "").split(","))
+  
+    if seed_tracks and remaining_seeds > 0:
+        params["seed_tracks"] = ",".join(seed_tracks[:remaining_seeds])
 
-    recommendations = response.json()["tracks"]
-    return recommendations
+    response = make_spotify_request("recommendations", headers=headers, params=params)
+    return response.get("tracks", [])
 
 
 def get_average_audio_features(audio_features_list):
@@ -215,80 +233,110 @@ def get_average_audio_features(audio_features_list):
     # Sum up all the features
     for features in audio_features_list:
         for key in summed_features:
-          if not isinstance(features[key], str):
-            summed_features[key] += features[key]
+            if features[key] is not None and not isinstance(features[key], str):
+                summed_features[key] += features[key]
 
-    # Calculate the average for each feature
+    # Calculate the average for each feature and round to 2 decimal places
     num_songs = len(audio_features_list)
-    avg_features = {key: value / num_songs for key, value in summed_features.items()}
+    avg_features = {
+        key: round(value / num_songs, 2)
+        for key, value in summed_features.items()
+    }
 
-    return avg_features
+    return dict(filter(lambda item: item[1] is not None, avg_features.items()))
+
 
 def refresh_access_token(refresh_token):
-    client_creds = base64.b64encode(
-        f"{CLIENT_ID}:{CLIENT_SECRET}".encode()).decode()
+  client_creds = base64.b64encode(
+    f"{CLIENT_ID}:{CLIENT_SECRET}".encode()).decode()
 
-    headers = {
-        "Authorization": f"Basic {client_creds}",
-    }
+  headers = {
+    "Authorization": f"Basic {client_creds}",
+  }
 
-    data = {
-        'grant_type': 'refresh_token',
-        'refresh_token': refresh_token
-    }
+  data = {'grant_type': 'refresh_token', 'refresh_token': refresh_token}
 
-    response = requests.post('https://accounts.spotify.com/api/token',
-                             data=data,
-                             headers=headers)
+  response = requests.post('https://accounts.spotify.com/api/token',
+                           data=data,
+                           headers=headers)
 
-    if response.status_code != 200:
-        session.pop('access_token', None)
-        return False
+  if response.status_code != 200:
+    session.pop('access_token', None)
+    return False
 
-    response_data = response.json()
-    session['access_token'] = response_data['access_token']
-    return True
+  response_data = response.json()
+  session['access_token'] = response_data['access_token']
+  return True
+
 
 def get_artist_ids_from_names(artist_names, access_token):
-    artist_ids = []
-    for name in artist_names:
-        search_results = search_artists(name, access_token)
-    for artist in search_results:
-        artist_ids.append(artist['id'])
+  artist_ids = []
+  for name in artist_names:
+    search_results = search_artists(name, access_token)
+  for artist in search_results:
+    artist_ids.append(artist['id'])
 
-    return artist_ids
+  return artist_ids
 
-def get_spotify_recommendations(seed_artists):
-    headers = {
-        "Authorization": f"Bearer {session['access_token']}"
-    }
-    params = {
-        "seed_artists": ",".join(seed_artists),
-        "limit": 10  # You can adjust the limit as needed
-    }
-    response = make_spotify_request('https://api.spotify.com/v1/recommendations', headers=headers, params=params)
-    return response.get('tracks', [])
 
 def get_song_details_from_spotify(song_title, artist_name):
-    headers = {
-        "Authorization": f"Bearer {session['access_token']}"
-    }
-    query = f"{song_title} artist:{artist_name}"
-    params = {
-        "q": query,
-        "type": "track",
-        "limit": 1
-    }
-    
-    # Construct the URL with embedded query parameters
-    base_url = 'https://api.spotify.com/v1/search'
-    query_string = "&".join([f"{key}={value}" for key, value in params.items()])   
-    response = make_spotify_request(f"search?{query_string}", headers=headers)
-    tracks = response.json()['tracks']['items']
-    return tracks[0] if tracks else None
+  headers = {"Authorization": f"Bearer {session['access_token']}"}
+  query = f"{song_title} artist:{artist_name}"
+  params = {"q": query, "type": "track", "limit": 1}
+
+  # Construct the URL with embedded query parameters
+  base_url = 'https://api.spotify.com/v1/search'
+  query_string = "&".join([f"{key}={value}" for key, value in params.items()])
+  response = make_spotify_request(f"search?{query_string}", headers=headers)
+  tracks = response['tracks']['items']
+  return tracks[0] if tracks else None
+
 
 def merge_songs(openai_songs, spotify_songs):
-    combined_songs = openai_songs + spotify_songs
-    unique_songs = {song['id']: song for song in combined_songs}.values()
-    return list(unique_songs)
+  combined_songs = openai_songs + spotify_songs
+  unique_songs = {song['id']: song for song in combined_songs}.values()
+  return list(unique_songs)
 
+
+def filter_songs_by_artist_gender(songs, gender):
+  filtered_songs = []
+  for song in songs:
+    artist_id = song["artists"][0]["id"]
+    artist_details = get_artist_details(artist_id)
+    if gender == "male" and artist_details["gender"] == "male":
+      filtered_songs.append(song)
+    elif gender == "female" and artist_details["gender"] == "female":
+      filtered_songs.append(song)
+  return filtered_songs
+
+
+def get_artist_details(artist_id):
+  headers = {"Authorization": f"Bearer {session['access_token']}"}
+  response = make_spotify_request(f"artists/{artist_id}", headers=headers)
+  return response
+
+def get_available_genres_from_spotify(access_token):
+    headers = {'Authorization': f'Bearer {access_token}'}
+    response = make_spotify_request('recommendations/available-genre-seeds', headers=headers)
+    return response.get('genres', [])
+
+def get_artist_gender(artist_id: str, spotify_access_token: str) -> Dict:
+    # Define headers for Spotify and MusicBrainz requests
+    spotify_headers = {
+        "Authorization": f"Bearer {spotify_access_token}"
+    }
+    musicbrainz_headers = {}
+    
+    # Fetch artist's name from Spotify
+    artist_data = make_spotify_request(f"artists/{artist_id}", spotify_headers)
+    artist_name = artist_data.get('name')
+    
+    # Fetch artist's gender from MusicBrainz using the artist's name
+    artist_gender_data = make_musicbrainz_request(f"artist/?query=artist:{artist_name}&fmt=json", musicbrainz_headers)
+    artists = artist_gender_data.get('artists', [])
+    
+    if artists:
+        gender = artists[0].get('gender', 'unknown')
+        return {"name": artist_name, "gender": gender}
+    else:
+        return {"error": "Artist not found in MusicBrainz"}

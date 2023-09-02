@@ -783,6 +783,17 @@ cryptography = ">=2.0"
 jeepney = ">=0.6"
 
 [[package]]
+name = "services"
+version = "0.1.1"
+description = "A Python package for helpful tooling."
+category = "main"
+optional = false
+python-versions = "*"
+
+[package.dependencies]
+Click = ">=6.0"
+
+[[package]]
 name = "shellingham"
 version = "1.5.1"
 description = "Tool to Detect Surrounding Shell"
@@ -958,7 +969,7 @@ testing = ["pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-cov", "pytest-ena
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.10.0,<3.11"
-content-hash = "d2fbc52acf6ca2bc90681d4c66bffe793bad209642c49ff5f555ac30e270c08a"
+content-hash = "0576a136ac914cdbf9ca9c1a0556b8f4ad2757cbac8853097b87c7408e6675de"
 
 [metadata.files]
 aiohttp = []
@@ -1025,6 +1036,7 @@ requests = []
 requests-toolbelt = []
 rope = []
 secretstorage = []
+services = []
 shellingham = []
 six = []
 textblob = []

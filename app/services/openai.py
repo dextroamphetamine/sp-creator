@@ -5,10 +5,14 @@ import requests
 from textblob import TextBlob
 openai.api_key = os.environ.get('OPENAI_KEY')
 
-def ask_openai_for_songs(moods, activities, artists, song_count):
+def ask_openai_for_songs(moods, activities, artists, song_count, genres=None):
     prompt = (f"I'm looking for song recommendations. Given the mood(s) {', '.join(moods)}, "
-              f"for an activity like {activities}, and preferences for artists such as {', '.join(list(map(lambda artist: artist['name'], artists)))}"
-              f"please suggest specific songs in the format 'Song Title by Artist' I want exactly {song_count} number of songs.")
+              f"for an activity like {activities}, and preferences for artists such as {', '.join(artists)}")
+
+    if genres:
+        prompt += f", preferably from the {', '.join(genres)} genre."
+
+    prompt += f" Please suggest specific songs in the format 'Song Title by Artist'. I want exactly {song_count} number of songs."
     
     response = openai.ChatCompletion.create(
         model="gpt-3.5-turbo",
@@ -16,10 +20,11 @@ def ask_openai_for_songs(moods, activities, artists, song_count):
           "role": "user",
           "content": prompt
         }],
-        max_tokens=500
+        max_tokens=1000
     )
     
     return response.choices[0].message.content.strip()
+
 
 def parse_openai_response(response):
     # Regular expression pattern to match song titles and artists

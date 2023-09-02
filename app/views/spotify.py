@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify, session
-from ..services.spotify import get_user_id, create_playlist, add_tracks_to_playlist, get_spotify_track_ids, get_audio_features, get_extended_song_recommendations, search_artists, get_average_audio_features, get_recommendations_based_on_features, get_artist_ids_from_names, merge_songs, get_song_details_from_spotify
+from ..services.spotify import get_user_id, create_playlist, add_tracks_to_playlist, get_spotify_track_ids, get_audio_features, search_artists, get_average_audio_features, get_recommendations_based_on_features, get_artist_ids_from_names, merge_songs, get_song_details_from_spotify, get_available_genres_from_spotify, filter_songs_by_artist_gender
 from ..services.openai import ask_openai_for_songs, parse_openai_response
 
 spotify_blueprint = Blueprint('spotify', __name__)
@@ -7,7 +7,7 @@ spotify_blueprint = Blueprint('spotify', __name__)
 @spotify_blueprint.route('/create-playlist', methods=['POST'])
 def create_playlist_endpoint():
     data = request.json
-    song_ids = data.get('song_ids', [])
+    song_ids = data.get('songs', [])
     playlist_name = data.get('name', 'My Playlist')
     access_token = session.get('access_token')
     user_id = get_user_id(access_token)
@@ -22,6 +22,7 @@ def search_songs():
     activities = data.get('activities', [])
     artists = data.get('artists', [])
     song_count = data.get('songCount', 10)
+    genderPreference = data.get('genderPreference', None)
     access_token = session.get("access_token")
     
     # 1. Use OpenAI to get song suggestions based on moods, activities, and artists
@@ -50,7 +51,10 @@ def search_songs():
     matching_songs = get_recommendations_based_on_features(audio_features, artist_ids, track_ids, access_token, song_count)
 
     combined_songs = merge_songs(openai_songs_spotify_details, matching_songs)
-    
+
+    if genderPreference is not None:
+      filter_songs_by_artist_gender(combined_songs, genderPreference)
+      
     return jsonify({"songs": combined_songs})
 
 
@@ -65,3 +69,9 @@ def search_artists_endpoint():
         return jsonify({"artists": artists})
     else:
         return jsonify({"error": "Failed to fetch artists or no artists found"}), 404
+
+@spotify_blueprint.route('/available-genres', methods=['GET'])
+def available_genres():
+    access_token = session.get('access_token')
+    genres= get_available_genres_from_spotify(access_token)
+    return jsonify(genres)

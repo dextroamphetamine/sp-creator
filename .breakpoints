@@ -2,10 +2,16 @@
   "files": {
     "app/services/spotify.py": [
       {
-        "id": "be8186de-3a04-4907-bd1b-55300d449a2e",
-        "line": 292,
-        "version": 895,
-        "index": 10816
+        "id": "3fc93b4f-bdc9-4d14-bf89-8d1626043db6",
+        "line": 307,
+        "version": 1316,
+        "index": 10507
+      },
+      {
+        "id": "6db8eb3b-c2a3-40f5-92a3-41593ef4fe3c",
+        "line": 309,
+        "version": 1316,
+        "index": 10605
       }
     ]
   }
