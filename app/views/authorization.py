@@ -1,15 +1,19 @@
-from flask import Blueprint, session, request, redirect, jsonify
 from os import environ
+
+from flask import Blueprint, session, request, redirect, jsonify
+
 from ..services.spotify import get_spotify_auth
 
+BASE_FLASK_URI = 'http://127.0.0.1:8080'
+BASE_URI = 'http://127.0.0.1:5173'
 CLIENT_ID = environ.get('CLIENT_ID')
 CLIENT_SECRET = environ.get('CLIENT_SECRET')
-REDIRECT_URI = 'https://python.dextroamphetam1.repl.co/callback'
+REDIRECT_URI = f'{BASE_FLASK_URI}/callback'
 
 auth_blueprint = Blueprint('auth', __name__)
 
 def redirect_to_app():
-    return redirect("https://regularvibrantlinkedlist.dextroamphetam1.repl.co/")
+    return redirect(f"{BASE_URI}")
 
 @auth_blueprint.route("/is-logged-in")
 def is_logged_in():

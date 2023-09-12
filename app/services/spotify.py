@@ -1,15 +1,16 @@
-import requests
 import base64
 import os
+from typing import Dict, Optional
+
+import requests
 from flask import session
-from typing import Dict, Optional, Callable
-from .openai import ask_openai_for_songs, parse_openai_response
-from .musicbrainz import make_musicbrainz_request
 
 BASE_SPOTIFY_URL = "https://api.spotify.com/v1/"
 CLIENT_ID = os.environ.get('CLIENT_ID')
 CLIENT_SECRET = os.environ.get('CLIENT_SECRET')
-REDIRECT_URI = 'https://python.dextroamphetam1.repl.co/callback'
+BASE_FLASK_URI = 'http://127.0.0.1:8080'
+BASE_URI = 'http://127.0.0.1:5173'
+REDIRECT_URI = f'{BASE_FLASK_URI}/callback'
 
 
 def get_spotify_auth(code):
@@ -320,23 +321,23 @@ def get_available_genres_from_spotify(access_token):
     response = make_spotify_request('recommendations/available-genre-seeds', headers=headers)
     return response.get('genres', [])
 
-def get_artist_gender(artist_id: str, spotify_access_token: str) -> Dict:
-    # Define headers for Spotify and MusicBrainz requests
-    spotify_headers = {
-        "Authorization": f"Bearer {spotify_access_token}"
-    }
-    musicbrainz_headers = {}
-    
-    # Fetch artist's name from Spotify
-    artist_data = make_spotify_request(f"artists/{artist_id}", spotify_headers)
-    artist_name = artist_data.get('name')
-    
-    # Fetch artist's gender from MusicBrainz using the artist's name
-    artist_gender_data = make_musicbrainz_request(f"artist/?query=artist:{artist_name}&fmt=json", musicbrainz_headers)
-    artists = artist_gender_data.get('artists', [])
-    
-    if artists:
-        gender = artists[0].get('gender', 'unknown')
-        return {"name": artist_name, "gender": gender}
-    else:
-        return {"error": "Artist not found in MusicBrainz"}
+# def get_artist_gender(artist_id: str, spotify_access_token: str) -> Dict:
+#     # Define headers for Spotify and MusicBrainz requests
+#     spotify_headers = {
+#         "Authorization": f"Bearer {spotify_access_token}"
+#     }
+#     musicbrainz_headers = {}
+#
+#     # Fetch artist's name from Spotify
+#     artist_data = make_spotify_request(f"artists/{artist_id}", spotify_headers)
+#     artist_name = artist_data.get('name')
+#
+#     # Fetch artist's gender from MusicBrainz using the artist's name
+#     artist_gender_data = make_musicbrainz_request(f"artist/?query=artist:{artist_name}&fmt=json", musicbrainz_headers)
+#     artists = artist_gender_data.get('artists', [])
+#
+#     if artists:
+#         gender = artists[0].get('gender', 'unknown')
+#         return {"name": artist_name, "gender": gender}
+#     else:
+#         return {"error": "Artist not found in MusicBrainz"}
